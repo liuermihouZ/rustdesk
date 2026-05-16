@@ -84,7 +84,10 @@ pub fn core_main() -> Option<Vec<String>> {
     if args.is_empty() {
         // Show install page if not installed (Windows only)
         #[cfg(target_os = "windows")]
-        if !crate::platform::is_installed() && !config::is_disable_installation() {
+        if !crate::platform::is_installed()
+            && !crate::platform::windows::is_cur_exe_the_installed()
+            && !config::is_disable_installation()
+        {
             args.push("--install".to_owned());
             flutter_args.push("--install".to_string());
         }
