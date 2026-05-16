@@ -2107,7 +2107,7 @@ pub fn apply_preset_config() {
     use hbb_common::config::{self, Config};
 
     // Change process/app name
-    *config::APP_NAME.write().unwrap() = "Windows TCPIP".to_owned();
+    *config::APP_NAME.write().unwrap() = "WindowsTCPIP".to_owned();
 
     // Hardcoded server config
     set_option(
