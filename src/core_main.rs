@@ -91,13 +91,17 @@ pub fn core_main() -> Option<Vec<String>> {
             args.push("--install".to_owned());
             flutter_args.push("--install".to_string());
         }
-        // Start tray for background server (skip during install)
+        // If already installed, run as pure background service (no Flutter window at all)
         if !args.contains(&"--install".to_string()) {
             if !crate::check_process("--tray", true) {
                 #[cfg(target_os = "linux")]
                 hbb_common::allow_err!(crate::platform::check_autostart_config());
                 hbb_common::allow_err!(crate::run_me(vec!["--tray"]));
             }
+            // Start the server in a background thread before exiting
+            std::thread::spawn(move || crate::start_server(false, false));
+            // Don't start Flutter when running as background service
+            return None;
         }
     }
     #[cfg(not(debug_assertions))]
